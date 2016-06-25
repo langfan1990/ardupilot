@@ -1,3 +1,5 @@
+////test added by LSH
+
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
 /*
@@ -72,6 +74,7 @@
  *  Requires modified version of Arduino, which can be found here: http://ardupilot.com/downloads/?category=6
  *
  */
+
 
 #include "Copter.h"
 
