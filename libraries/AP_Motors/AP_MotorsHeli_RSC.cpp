@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,15 +24,22 @@ extern const AP_HAL::HAL& hal;
 void AP_MotorsHeli_RSC::init_servo()
 {
     // setup RSC on specified channel by default
-    RC_Channel_aux::set_aux_channel_default(_aux_fn, _default_channel);
+    SRV_Channels::set_aux_channel_default(_aux_fn, _default_channel);
 }
 
 // set_power_output_range
-void AP_MotorsHeli_RSC::set_power_output_range(float power_low, float power_high)
+// TODO: Look at possibly calling this at a slower rate.  Doesn't need to be called every cycle.
+void AP_MotorsHeli_RSC::set_throttle_curve(float thrcrv[5], uint16_t slewrate)
 {
-    _power_output_low = power_low;
-    _power_output_high = power_high;
-    _power_output_range = _power_output_high - _power_output_low;
+
+    // Ensure user inputs are within parameter limits
+    for (uint8_t i = 0; i < 5; i++) {
+        thrcrv[i] = constrain_float(thrcrv[i], 0.0f, 1.0f);
+    }
+    // Calculate the spline polynomials for the throttle curve
+    splinterp5(thrcrv,_thrcrv_poly);
+
+    _power_slewrate = slewrate;
 }
 
 // output - update value to send to ESC/Servo
@@ -41,7 +47,8 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
 {
     float dt;
     uint64_t now = AP_HAL::micros64();
-    
+    float last_control_output = _control_output;
+
     if (_last_update_us == 0) {
         _last_update_us = now;
         dt = 0.001f;
@@ -49,7 +56,7 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
         dt = 1.0e-6f * (now - _last_update_us);
         _last_update_us = now;
     }
-    
+
     switch (state){
         case ROTOR_CONTROL_STOP:
             // set rotor ramp to decrease speed to zero, this happens instantly inside update_rotor_ramp()
@@ -75,14 +82,21 @@ void AP_MotorsHeli_RSC::output(RotorControlState state)
                 // set control rotor speed to ramp slewed value between idle and desired speed
                 _control_output = _idle_output + (_rotor_ramp_output * (_desired_speed - _idle_output));
             } else if (_control_mode == ROTOR_CONTROL_MODE_OPEN_LOOP_POWER_OUTPUT) {
-                // throttle output depending on estimated power demand. Output is ramped up from idle speed during rotor runup.
-                _control_output = _idle_output + (_rotor_ramp_output * ((_power_output_low - _idle_output) + (_power_output_range * _load_feedforward)));
+                // throttle output from throttle curve based on collective position
+                    float desired_throttle = calculate_desired_throttle(_collective_in);
+                    _control_output = _idle_output + (_rotor_ramp_output * (desired_throttle - _idle_output));
             }
             break;
     }
 
     // update rotor speed run-up estimate
     update_rotor_runup(dt);
+
+    if (_power_slewrate > 0) {
+        // implement slew rate for throttle
+        float max_delta = dt * _power_slewrate * 0.01f;
+        _control_output = constrain_float(_control_output, last_control_output-max_delta, last_control_output+max_delta);
+    }
 
     // output to rsc servo
     write_rsc(_control_output);
@@ -173,13 +187,22 @@ void AP_MotorsHeli_RSC::write_rsc(float servo_out)
         // ToDo: We should probably use RC_Channel_Aux to avoid this problem
         return;
     } else {
-        // calculate PWM value based on H_RSC_PWM_MIN, H_RSC_PWM_MAX and H_RSC_PWM_REV
-        uint16_t pwm = servo_out * (_pwm_max - _pwm_min);
-        if (_pwm_rev >= 0) {
-            pwm = _pwm_min + pwm;
-        } else {
-            pwm = _pwm_max - pwm;
-        }
-        RC_Channel_aux::set_radio(_aux_fn, pwm);
+        SRV_Channels::set_output_scaled(_aux_fn, (uint16_t) (servo_out * 1000));
     }
 }
+
+    // calculate_desired_throttle - uses throttle curve and collective input to determine throttle setting
+float AP_MotorsHeli_RSC::calculate_desired_throttle(float collective_in)
+{
+
+    const float inpt = collective_in * 4.0f + 1.0f;
+    uint8_t idx = constrain_int16(int8_t(collective_in * 4), 0, 3);
+    const float a = inpt - (idx + 1.0f);
+    const float b = (idx + 1.0f) - inpt + 1.0f;
+    float throttle = _thrcrv_poly[idx][0] * a + _thrcrv_poly[idx][1] * b + _thrcrv_poly[idx][2] * (powf(a,3.0f) - a) / 6.0f + _thrcrv_poly[idx][3] * (powf(b,3.0f) - b) / 6.0f;
+
+    throttle = constrain_float(throttle, 0.0f, 1.0f);
+    return throttle;
+
+}
+

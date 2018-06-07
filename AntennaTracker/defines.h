@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 #pragma once
 
 // Command/Waypoint/Location Options Bitmask
@@ -26,8 +25,20 @@ enum ServoType {
 
 enum AltSource {
 	ALT_SOURCE_BARO=0,
-	ALT_SOURCE_GPS=1
+	ALT_SOURCE_GPS=1,
+	ALT_SOURCE_GPS_VEH_ONLY=2
 };
+
+enum mode_reason_t {
+    MODE_REASON_INITIALISED = 0,
+    MODE_REASON_STARTUP,
+    MODE_REASON_SERVOTEST,
+    MODE_REASON_GCS_COMMAND,
+};
+
+//  Filter
+#define SERVO_OUT_FILT_HZ               0.1f
+#define G_Dt                            0.02f
 
 //  Logging parameters
 #define MASK_LOG_ATTITUDE               (1<<0)
@@ -36,6 +47,7 @@ enum AltSource {
 #define MASK_LOG_IMU                    (1<<3)
 #define MASK_LOG_RCOUT                  (1<<4)
 #define MASK_LOG_COMPASS                (1<<5)
+#define MASK_LOG_CURRENT                (1<<6)
 #define MASK_LOG_ANY                    0xFFFF
 
 //  Logging messages

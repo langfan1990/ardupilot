@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,7 +46,6 @@ public:
     void update(void);
 
 private:
-    const struct sitl_fdm &fdm;
     const char *target_address = "127.0.0.1";
     const uint16_t target_port = 5762;
 
@@ -60,6 +58,7 @@ private:
     const float reporting_period_ms = 1000;
     uint32_t last_report_us = 0;
     uint32_t last_update_us = 0;
+    uint32_t last_tx_report_ms = 0;
     
     uint32_t last_heartbeat_ms = 0;
     bool seen_heartbeat = false;

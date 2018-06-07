@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /// @file	PID.cpp
 /// @brief	Generic PID algorithm
 
@@ -111,12 +109,6 @@ float PID::get_pid(float error, float scaler)
     return output;
 }
 
-int16_t PID::get_pid_4500(float error, float scaler)
-{
-	float v = get_pid(error, scaler);
-	return constrain_float(v, -4500, 4500);
-}
-
 void
 PID::reset_I()
 {
@@ -125,6 +117,11 @@ PID::reset_I()
 	// derivative value is not valid
     _last_derivative = NAN;
     _pid_info.I = 0;
+}
+
+void PID::reset() {
+    memset(&_pid_info, 0, sizeof(_pid_info));
+    reset_I();
 }
 
 void
